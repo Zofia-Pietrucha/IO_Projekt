@@ -1,4 +1,4 @@
-# main.py (zaktualizowany)
+# main.py (zaktualizowany z opcją ulepszonego CNN)
 import os
 import argparse
 import numpy as np
@@ -21,6 +21,9 @@ def create_folder_structure():
         "results/cnn",
         "results/cnn/models",
         "results/cnn/plots",
+        "results/cnn_improved",      # Nowy folder dla ulepszonego CNN
+        "results/cnn_improved/models",
+        "results/cnn_improved/plots",
         "results/transfer_learning",
         "results/transfer_learning/models",
         "results/transfer_learning/plots"
@@ -176,6 +179,12 @@ def run_cnn():
     import cnn_model
     print("Model CNN zakończył działanie.")
 
+def run_cnn_improved():
+    """Uruchamia ulepszony model CNN."""
+    print("Uruchamianie ulepszonego modelu CNN...")
+    import cnn_improved_model
+    print("Ulepszony model CNN zakończył działanie.")
+
 def run_transfer_learning():
     """Uruchamia model Transfer Learning."""
     print("Uruchamianie modelu Transfer Learning...")
@@ -184,7 +193,7 @@ def run_transfer_learning():
 
 def main():
     parser = argparse.ArgumentParser(description='Klasyfikacja znamion skórnych: benign vs. melanoma')
-    parser.add_argument('--model', type=str, choices=['rf', 'cnn', 'tl', 'all'], 
+    parser.add_argument('--model', type=str, choices=['rf', 'cnn', 'cnn_improved', 'tl', 'all'], 
                         default='all', help='Wybierz model do uruchomienia')
     parser.add_argument('--split-ratio', type=float, default=0.8,
                         help='Proporcja podziału na zbiór treningowy (domyślnie: 0.8)')
@@ -209,6 +218,9 @@ def main():
     
     if args.model == 'cnn' or args.model == 'all':
         run_cnn()
+    
+    if args.model == 'cnn_improved' or args.model == 'all':
+        run_cnn_improved()
     
     if args.model == 'tl' or args.model == 'all':
         run_transfer_learning()
