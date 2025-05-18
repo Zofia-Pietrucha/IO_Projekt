@@ -1,4 +1,4 @@
-# main.py (zaktualizowany z opcją ulepszonego CNN)
+# main.py (zaktualizowany z opcją CNN v3)
 import os
 import argparse
 import numpy as np
@@ -21,9 +21,12 @@ def create_folder_structure():
         "results/cnn",
         "results/cnn/models",
         "results/cnn/plots",
-        "results/cnn_improved",      # Nowy folder dla ulepszonego CNN
+        "results/cnn_improved",
         "results/cnn_improved/models",
         "results/cnn_improved/plots",
+        "results/cnn_v3",         # Nowy folder dla CNN v3
+        "results/cnn_v3/models",
+        "results/cnn_v3/plots",
         "results/transfer_learning",
         "results/transfer_learning/models",
         "results/transfer_learning/plots"
@@ -34,19 +37,40 @@ def create_folder_structure():
     
     print("Struktura folderów została utworzona.")
 
-def split_data(source_dir, train_dir, test_dir, split_ratio=0.8):
-    """Dzieli zbiór danych na treningowy i testowy w podanej proporcji."""
+def split_data(source_dir, train_dir, test_dir, split_ratio=0.8, force_split=False):
+    """Dzieli zbiór danych na treningowy i testowy w podanej proporcji.
+    
+    Args:
+        source_dir: Ścieżka do folderu źródłowego z obrazami
+        train_dir: Ścieżka do folderu treningowego
+        test_dir: Ścieżka do folderu testowego
+        split_ratio: Proporcja podziału na zbiór treningowy (domyślnie 0.8)
+        force_split: Czy wymusić ponowny podział danych (domyślnie False)
+    """
+    if not os.path.exists(source_dir):
+        print(f"Błąd: folder źródłowy {source_dir} nie istnieje.")
+        return 0, 0
+    
     files = os.listdir(source_dir)
     
-    # Jeśli folder docelowy jest już pełny, zakładamy, że dane są już podzielone
-    train_files = os.listdir(train_dir)
-    test_files = os.listdir(test_dir)
+    # Jeśli folder docelowy jest już pełny i nie wymuszamy podziału, zakładamy, że dane są już podzielone
+    train_files = os.listdir(train_dir) if os.path.exists(train_dir) else []
+    test_files = os.listdir(test_dir) if os.path.exists(test_dir) else []
     
-    if len(train_files) > 0 and len(test_files) > 0:
+    if len(train_files) > 0 and len(test_files) > 0 and not force_split:
         print(f"Foldery {train_dir} i {test_dir} już zawierają dane.")
         print(f"Liczba plików treningowych: {len(train_files)}")
         print(f"Liczba plików testowych: {len(test_files)}")
         return len(train_files), len(test_files)
+    
+    # Jeśli wymuszamy podział, usuwamy najpierw stare pliki
+    if force_split:
+        if os.path.exists(train_dir):
+            for file in os.listdir(train_dir):
+                os.remove(os.path.join(train_dir, file))
+        if os.path.exists(test_dir):
+            for file in os.listdir(test_dir):
+                os.remove(os.path.join(test_dir, file))
     
     # Pomieszaj dane i podziel na zbiory
     np.random.seed(42)  # Dla powtarzalności wyników
@@ -77,7 +101,7 @@ def visualize_data_augmentation():
     train_benign_dir = os.path.join(train_dir, "benign")
     train_melanoma_dir = os.path.join(train_dir, "melanoma")
     
-    # Generator z augmentacją dla danych treningowych
+    # Generator z augmentacją dla danych treningowych (bazowa wersja)
     train_datagen = ImageDataGenerator(
         rescale=1./255,             # normalizacja
         rotation_range=20,          # ostrożny losowy obrót
@@ -127,7 +151,7 @@ def visualize_data_augmentation():
     else:
         print("Brak plików do wizualizacji augmentacji.")
 
-def prepare_data(split_ratio=0.8):
+def prepare_data(split_ratio=0.8, force_split=False):
     """Przygotowuje dane - podział na zbiory treningowy i testowy."""
     # Ścieżki do katalogów
     base_dir = "data/skin_moles"
@@ -150,8 +174,8 @@ def prepare_data(split_ratio=0.8):
 
     # Podział danych
     print(f"Dzielenie danych na zbiory treningowy ({split_ratio*100}%) i testowy ({(1-split_ratio)*100}%)...")
-    benign_train_count, benign_test_count = split_data(benign_dir, train_benign_dir, test_benign_dir, split_ratio)
-    melanoma_train_count, melanoma_test_count = split_data(melanoma_dir, train_melanoma_dir, test_melanoma_dir, split_ratio)
+    benign_train_count, benign_test_count = split_data(benign_dir, train_benign_dir, test_benign_dir, split_ratio, force_split)
+    melanoma_train_count, melanoma_test_count = split_data(melanoma_dir, train_melanoma_dir, test_melanoma_dir, split_ratio, force_split)
 
     print(f"\nLiczba obrazów treningowych (benign): {benign_train_count}")
     print(f"Liczba obrazów treningowych (melanoma): {melanoma_train_count}")
@@ -185,6 +209,12 @@ def run_cnn_improved():
     import cnn_improved_model
     print("Ulepszony model CNN zakończył działanie.")
 
+def run_cnn_v3():
+    """Uruchamia model CNN v3."""
+    print("Uruchamianie modelu CNN v3...")
+    import cnn_v3_model
+    print("Model CNN v3 zakończył działanie.")
+
 def run_transfer_learning():
     """Uruchamia model Transfer Learning."""
     print("Uruchamianie modelu Transfer Learning...")
@@ -193,12 +223,14 @@ def run_transfer_learning():
 
 def main():
     parser = argparse.ArgumentParser(description='Klasyfikacja znamion skórnych: benign vs. melanoma')
-    parser.add_argument('--model', type=str, choices=['rf', 'cnn', 'cnn_improved', 'tl', 'all'], 
+    parser.add_argument('--model', type=str, choices=['rf', 'cnn', 'cnn_improved', 'cnn_v3', 'tl', 'all'], 
                         default='all', help='Wybierz model do uruchomienia')
     parser.add_argument('--split-ratio', type=float, default=0.8,
                         help='Proporcja podziału na zbiór treningowy (domyślnie: 0.8)')
     parser.add_argument('--skip-data-prep', action='store_true',
                         help='Pomiń przygotowanie danych (użyj, gdy dane są już podzielone)')
+    parser.add_argument('--force-split', action='store_true',
+                        help='Wymuś ponowny podział danych (usunie istniejące pliki w folderach train/test)')
     
     args = parser.parse_args()
     
@@ -207,7 +239,7 @@ def main():
     
     # Przygotowanie danych (podział na zbiory treningowy i testowy)
     if not args.skip_data_prep:
-        success = prepare_data(split_ratio=args.split_ratio)
+        success = prepare_data(split_ratio=args.split_ratio, force_split=args.force_split)
         if not success:
             print("Błąd podczas przygotowywania danych. Przerwanie programu.")
             return
@@ -221,6 +253,9 @@ def main():
     
     if args.model == 'cnn_improved' or args.model == 'all':
         run_cnn_improved()
+    
+    if args.model == 'cnn_v3' or args.model == 'all':
+        run_cnn_v3()
     
     if args.model == 'tl' or args.model == 'all':
         run_transfer_learning()
