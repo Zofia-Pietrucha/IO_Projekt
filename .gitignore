@@ -1,2 +1,39 @@
-data/skin_moles
-tf-env
+# Ignoruj dane
+data/skin_moles/
+
+# Ignoruj pliki modeli
+*.h5
+*.hdf5
+*.pb
+*.tflite
+*.pkl
+*.joblib
+*.ckpt
+*.onnx
+
+# Ignoruj katalogi z modelami i wagami
+**/models/**
+**/variables/**
+results/
+
+# Ignoruj środowiska wirtualne
+tf-env/
+venv/
+.env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.so
+
+# Logi i pliki robocze
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+
+# VSCode / IDE
+.vscode/
+.idea/
+*.code-workspace
