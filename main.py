@@ -24,9 +24,12 @@ def create_folder_structure():
         "results/cnn_improved",
         "results/cnn_improved/models",
         "results/cnn_improved/plots",
-        "results/cnn_v3",         # Nowy folder dla CNN v3
+        "results/cnn_v3",         
         "results/cnn_v3/models",
         "results/cnn_v3/plots",
+        "results/cnn_v4",         
+        "results/cnn_v4/models",
+        "results/cnn_v4/plots",
         "results/transfer_learning",
         "results/transfer_learning/models",
         "results/transfer_learning/plots"
@@ -215,6 +218,12 @@ def run_cnn_v3():
     import cnn_v3_model
     print("Model CNN v3 zakończył działanie.")
 
+def run_cnn_v4():
+    """Uruchamia model CNN v4."""
+    print("Uruchamianie modelu CNN v4...")
+    import cnn_v4_model
+    print("Model CNN v4 zakończył działanie.")
+
 def run_transfer_learning():
     """Uruchamia model Transfer Learning."""
     print("Uruchamianie modelu Transfer Learning...")
@@ -223,8 +232,9 @@ def run_transfer_learning():
 
 def main():
     parser = argparse.ArgumentParser(description='Klasyfikacja znamion skórnych: benign vs. melanoma')
-    parser.add_argument('--model', type=str, choices=['rf', 'cnn', 'cnn_improved', 'cnn_v3', 'tl', 'all'], 
-                        default='all', help='Wybierz model do uruchomienia')
+    parser.add_argument('--model', type=str, 
+                    choices=['rf', 'cnn', 'cnn_improved', 'cnn_v3', 'cnn_v4', 'tl', 'all'], 
+                    default='all', help='Wybierz model do uruchomienia')
     parser.add_argument('--split-ratio', type=float, default=0.8,
                         help='Proporcja podziału na zbiór treningowy (domyślnie: 0.8)')
     parser.add_argument('--skip-data-prep', action='store_true',
@@ -256,6 +266,9 @@ def main():
     
     if args.model == 'cnn_v3' or args.model == 'all':
         run_cnn_v3()
+
+    if args.model == 'cnn_v4' or args.model == 'all':
+        run_cnn_v4()
     
     if args.model == 'tl' or args.model == 'all':
         run_transfer_learning()
