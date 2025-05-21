@@ -1,5 +1,6 @@
 # Ignoruj dane
 data/skin_moles/
+uploads/
 
 # Ignoruj pliki modeli
 *.h5
