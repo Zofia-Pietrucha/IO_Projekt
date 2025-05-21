@@ -1,5 +1,6 @@
-# main.py (zaktualizowany z opcją CNN v3)
+# main.py - z implementacją nowego modelu XGBoost
 import os
+import sys
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
@@ -32,7 +33,13 @@ def create_folder_structure():
         "results/cnn_v4/plots",
         "results/transfer_learning",
         "results/transfer_learning/models",
-        "results/transfer_learning/plots"
+        "results/transfer_learning/plots",
+        "results/xgboost",
+        "results/xgboost/models",
+        "results/xgboost/plots",
+        "results/efficientnet",
+        "results/efficientnet/models",
+        "results/efficientnet/plots",
     ]
     
     for folder in folders:
@@ -230,10 +237,22 @@ def run_transfer_learning():
     import transfer_learning_model
     print("Model Transfer Learning zakończył działanie.")
 
+def run_xgboost():
+    """Uruchamia model XGBoost."""
+    print("Uruchamianie modelu XGBoost...")
+    import xgboost_model
+    print("Model XGBoost zakończył działanie.")
+
+def run_efficientnet():
+    """Uruchamia model EfficientNet."""
+    print("Uruchamianie modelu EfficientNet...")
+    import efficientnet_model
+    print("Model EfficientNet zakończył działanie.")
+
 def main():
     parser = argparse.ArgumentParser(description='Klasyfikacja znamion skórnych: benign vs. melanoma')
     parser.add_argument('--model', type=str, 
-                    choices=['rf', 'cnn', 'cnn_improved', 'cnn_v3', 'cnn_v4', 'tl', 'all'], 
+                    choices=['rf', 'cnn', 'cnn_improved', 'cnn_v3', 'cnn_v4', 'tl', 'xgb', 'effnet', 'all'], 
                     default='all', help='Wybierz model do uruchomienia')
     parser.add_argument('--split-ratio', type=float, default=0.8,
                         help='Proporcja podziału na zbiór treningowy (domyślnie: 0.8)')
@@ -272,6 +291,12 @@ def main():
     
     if args.model == 'tl' or args.model == 'all':
         run_transfer_learning()
+        
+    if args.model == 'xgb' or args.model == 'all':
+        run_xgboost()
     
+    if args.model == 'effnet' or args.model == 'all':
+        run_efficientnet()
+
 if __name__ == "__main__":
     main()
