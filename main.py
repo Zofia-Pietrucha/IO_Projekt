@@ -19,6 +19,9 @@ def create_folder_structure():
         "results/random_forest", 
         "results/random_forest/models",
         "results/random_forest/plots",
+        "results/random_forest_improved",
+        "results/random_forest_improved/models",
+        "results/random_forest_improved/plots", 
         "results/cnn",
         "results/cnn/models",
         "results/cnn/plots",
@@ -207,6 +210,12 @@ def run_random_forest():
     import rf_model
     print("Model Random Forest zakończył działanie.")
 
+def run_random_forest_improved():
+    """Uruchamia ulepszony model Random Forest."""
+    print("Uruchamianie ulepszonego modelu Random Forest...")
+    import rf_model_improved
+    print("Ulepszony model Random Forest zakończył działanie.")
+
 def run_cnn():
     """Uruchamia model CNN."""
     print("Uruchamianie modelu CNN...")
@@ -252,7 +261,7 @@ def run_efficientnet():
 def main():
     parser = argparse.ArgumentParser(description='Klasyfikacja znamion skórnych: benign vs. melanoma')
     parser.add_argument('--model', type=str, 
-                    choices=['rf', 'cnn', 'cnn_improved', 'cnn_v3', 'cnn_v4', 'tl', 'xgb', 'effnet', 'all'], 
+                    choices=['rf', 'rf_improved', 'cnn', 'cnn_improved', 'cnn_v3', 'cnn_v4', 'tl', 'xgb', 'effnet', 'all'], 
                     default='all', help='Wybierz model do uruchomienia')
     parser.add_argument('--split-ratio', type=float, default=0.8,
                         help='Proporcja podziału na zbiór treningowy (domyślnie: 0.8)')
@@ -260,6 +269,9 @@ def main():
                         help='Pomiń przygotowanie danych (użyj, gdy dane są już podzielone)')
     parser.add_argument('--force-split', action='store_true',
                         help='Wymuś ponowny podział danych (usunie istniejące pliki w folderach train/test)')
+    
+    parser.add_argument('--clean-first', action='store_true',
+                        help='Wyczyść foldery train/test przed rozpoczęciem')
     
     args = parser.parse_args()
     
@@ -276,6 +288,9 @@ def main():
     # Uruchamianie wybranych modeli
     if args.model == 'rf' or args.model == 'all':
         run_random_forest()
+
+    if args.model == 'rf_improved' or args.model == 'all':
+        run_random_forest_improved()
     
     if args.model == 'cnn' or args.model == 'all':
         run_cnn()
