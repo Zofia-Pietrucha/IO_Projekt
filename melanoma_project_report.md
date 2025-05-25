@@ -26,7 +26,7 @@ Dane podzieliłam w najpierw w proporcji **70% treningowe / 30% testowe**. Jedna
 
 ## 2. Badane modele i techniki
 
-Przebadałam łącznie **\* różnych podejść** do klasyfikacji, od tradycyjnych metod uczenia maszynowego po zaawansowane sieci neuronowe i modele hybrydowe.
+Przebadałam łącznie **9 różnych podejść** do klasyfikacji, od tradycyjnych metod uczenia maszynowego po zaawansowane sieci neuronowe i modele hybrydowe.
 
 ### 2.1 Random Forest (podstawowy)
 
@@ -422,3 +422,8 @@ Projekt zakończył się sukcesem, osiągając **ROC AUC = 0.903** dla najlepsze
 2. **Iteracyjne ulepszenia:** Każda wersja modelu wykorzystywała wnioski z poprzedniej
 3. **Kombinowanie podejść:** Model hybrydowy połączył mocne strony różnych technik
 4. **Optymalizacja dla problemu medycznego:** Skupienie na czułości wykrywania melanomy
+
+## 8. Uruchomiennie
+
+Projekt uruchamia się poleceniem python app.py, storna działa na http://127.0.0.1:5000
+

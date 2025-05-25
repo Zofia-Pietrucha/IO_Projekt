@@ -1,4 +1,3 @@
-# hybrid_tl_xgb_model_complete.py - Pełny kod modelu hybrydowego z Premium CV
 import numpy as np
 import os
 import matplotlib.pyplot as plt
@@ -11,21 +10,18 @@ import cv2
 from scipy import ndimage
 from scipy.stats import entropy
 
-# TensorFlow/Keras imports
 import tensorflow as tf
 from tensorflow.keras.applications import MobileNetV2
 from tensorflow.keras.preprocessing.image import load_img, img_to_array, ImageDataGenerator
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import GlobalAveragePooling2D
 
-# XGBoost i sklearn
 import xgboost as xgb
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, roc_curve, auc, f1_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import cross_val_score, StratifiedKFold
 from sklearn.metrics import precision_score, recall_score, roc_auc_score
 
-# Tworzenie struktury folderów
 hybrid_results_dir = "results/hybrid_tl_xgb"
 hybrid_models_dir = os.path.join(hybrid_results_dir, "models")
 hybrid_plots_dir = os.path.join(hybrid_results_dir, "plots")
@@ -37,7 +33,6 @@ for dir_path in [hybrid_results_dir, hybrid_models_dir, hybrid_plots_dir]:
 IMG_SIZE = (224, 224)
 BATCH_SIZE = 32
 
-# Ścieżki do danych
 base_dir = "data/skin_moles"
 train_dir = os.path.join(base_dir, "train")
 test_dir = os.path.join(base_dir, "test")
@@ -169,10 +164,10 @@ def extract_hybrid_features(img_path, feature_extractor):
         img_mobilenet = tf.keras.applications.mobilenet_v2.preprocess_input(img_array)
         img_batch = np.expand_dims(img_mobilenet, axis=0)
         
-        # Ekstraktuj głębokie cechy
+        # głębokie cechy
         deep_features = feature_extractor.predict(img_batch, verbose=0)[0]
         
-        # Ekstraktuj tradycyjne cechy
+        # tradycyjne cechy
         traditional_features = extract_traditional_features(img_path)
         
         # Połącz cechy
@@ -316,7 +311,6 @@ def premium_cross_validation_with_early_stopping(model_params, X, y, cv_folds=5,
     
     skf = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
     
-    # Przechowywanie wyników
     fold_results = {
         'f1_scores': [],
         'precision_scores': [],
@@ -342,7 +336,6 @@ def premium_cross_validation_with_early_stopping(model_params, X, y, cv_folds=5,
         train_indices = []
         val_indices = []
         
-        # Zachowaj proporcje klas
         for class_label in [0, 1]:
             class_indices = np.where(y_train_val == class_label)[0]
             np.random.shuffle(class_indices)
@@ -382,7 +375,6 @@ def premium_cross_validation_with_early_stopping(model_params, X, y, cv_folds=5,
         
         except Exception as e:
             print(f"   ⚠️  Błąd treningu fold {fold_idx + 1}: {e}")
-            # Fallback bez early stopping
             fold_model_simple = xgb.XGBClassifier(
                 n_estimators=100,
                 learning_rate=model_params['learning_rate'],
@@ -456,16 +448,13 @@ model_params = {
     'n_jobs': -1
 }
 
-# Uruchom Premium Cross-Validation
 cv_results = premium_cross_validation_with_early_stopping(
     model_params, X_train_scaled, y_train, cv_folds=5, verbose=True
 )
 
-# Dla kompatybilności z resztą kodu
 cv_scores = cv_results['f1_scores']['scores']
 print(f"\nCV F1 Score (główna metryka): {cv_scores.mean():.4f} ± {cv_scores.std():.4f}")
 
-# Optymalizacja progu decyzyjnego
 print("\nSzukanie optymalnego progu decyzyjnego...")
 thresholds = np.arange(0.1, 0.9, 0.01)
 f1_scores = []
@@ -502,7 +491,6 @@ best_accuracy = accuracy_scores[best_idx]
 print(f"Optymalny próg: {best_threshold:.2f}")
 print(f"F1={best_f1:.4f}, Recall={best_recall:.4f}, Precision={best_precision:.4f}, Accuracy={best_accuracy:.4f}")
 
-# Finalne predykcje z optymalnym progiem
 y_pred_final = (y_pred_prob > best_threshold).astype(int)
 
 # === CZĘŚĆ 8: WIZUALIZACJE ===
@@ -614,7 +602,6 @@ traditional_feature_names = [
     'Area_normalized', 'Perimeter_normalized', 'Circularity'
 ]
 
-# Dopasuj liczbę nazw do rzeczywistej liczby tradycyjnych cech
 if len(traditional_feature_names) < len(traditional_features_importance):
     for i in range(len(traditional_feature_names), len(traditional_features_importance)):
         traditional_feature_names.append(f'Traditional_feature_{i}')
@@ -642,7 +629,6 @@ with open(os.path.join(hybrid_models_dir, 'scaler.pkl'), 'wb') as f:
     pickle.dump(scaler, f)
 print(f"✅ Scaler zapisany: {os.path.join(hybrid_models_dir, 'scaler.pkl')}")
 
-# Zapisz szczegółowy raport klasyfikacji
 with open(os.path.join(hybrid_results_dir, 'classification_report.txt'), 'w', encoding='utf-8') as f:
     f.write("Hybrid Transfer Learning + XGBoost Model - Detailed Report\n")
     f.write("=" * 60 + "\n")
@@ -691,7 +677,6 @@ with open(os.path.join(hybrid_results_dir, 'classification_report.txt'), 'w', en
 
 print(f"✅ Szczegółowy raport zapisany: {os.path.join(hybrid_results_dir, 'classification_report.txt')}")
 
-# Zapisz podsumowanie wyników
 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 with open(os.path.join(hybrid_results_dir, 'results_summary.txt'), 'w', encoding='utf-8') as f:
     f.write(f"Hybrid TL+XGBoost Model Results Summary\n")
@@ -729,7 +714,6 @@ with open(os.path.join(hybrid_results_dir, 'results_summary.txt'), 'w', encoding
 
 print(f"✅ Podsumowanie wyników zapisane: {os.path.join(hybrid_results_dir, 'results_summary.txt')}")
 
-# Zapisz parametry modelu do późniejszego użycia
 model_config = {
     'best_threshold': best_threshold,
     'feature_names': traditional_feature_names,
@@ -778,7 +762,6 @@ def predict_hybrid(image_path, feature_extractor=None, xgb_model=None, scaler=No
         threshold = best_threshold
     
     try:
-        # Wczytaj modele jeśli nie podane
         if feature_extractor is None:
             feature_extractor = tf.keras.models.load_model(os.path.join(hybrid_models_dir, 'feature_extractor'))
         

@@ -1,4 +1,3 @@
-# transfer_learning_model.py
 import numpy as np
 import os
 import matplotlib.pyplot as plt
@@ -13,12 +12,10 @@ from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLRO
 from tensorflow.keras.optimizers import Adam
 from sklearn.metrics import confusion_matrix, classification_report, roc_curve, auc
 
-# Tworzenie struktury folderów dla wyników modelu Transfer Learning
 tl_results_dir = "results/transfer_learning"
 tl_models_dir = os.path.join(tl_results_dir, "models")
 tl_plots_dir = os.path.join(tl_results_dir, "plots")
 
-# Tworzymy foldery, jeśli nie istnieją
 for dir_path in [tl_results_dir, tl_models_dir, tl_plots_dir]:
     os.makedirs(dir_path, exist_ok=True)
 
@@ -27,7 +24,6 @@ img_width, img_height = 224, 224  # MobileNetV2 wymaga tego rozmiaru
 batch_size = 32
 epochs = 20
 
-# Ścieżki do danych
 base_dir = "data/skin_moles"
 train_dir = os.path.join(base_dir, "train")
 test_dir = os.path.join(base_dir, "test")
@@ -43,10 +39,8 @@ train_datagen = ImageDataGenerator(
     fill_mode='nearest'         # strategia wypełniania nowych pikseli
 )
 
-# Generator dla danych testowych (tylko normalizacja)
 test_datagen = ImageDataGenerator(rescale=1./255)
 
-# Przygotowanie generatorów
 train_generator = train_datagen.flow_from_directory(
     train_dir,
     target_size=(img_width, img_height),
@@ -59,10 +53,9 @@ test_generator = test_datagen.flow_from_directory(
     target_size=(img_width, img_height),
     batch_size=batch_size,
     class_mode='binary',
-    shuffle=False  # Ważne dla ewaluacji!
+    shuffle=False
 )
 
-# Wczytanie modelu bazowego (MobileNetV2)
 print("Wczytywanie modelu bazowego MobileNetV2...")
 base_model = MobileNetV2(
     weights='imagenet',        # Wczytanie wag z pre-treningu na ImageNet
@@ -84,18 +77,15 @@ predictions = Dense(1, activation='sigmoid')(x) # Wyjściowa warstwa dla klasyfi
 # Stworzenie nowego modelu
 model = Model(inputs=base_model.input, outputs=predictions)
 
-# Kompilacja modelu
 model.compile(
     optimizer=Adam(learning_rate=0.0001),
     loss='binary_crossentropy',
     metrics=['accuracy']
 )
 
-# Zapisz podsumowanie architektury do pliku - POPRAWIONE KODOWANIE
 with open(os.path.join(tl_results_dir, 'model_architecture.txt'), 'w', encoding='utf-8') as f:
     model.summary(print_fn=lambda x: f.write(x + '\n'))
 
-# Przygotowanie callbacków
 checkpoint = ModelCheckpoint(
     os.path.join(tl_models_dir, 'best_model_stage1.h5'),
     monitor='val_accuracy',
@@ -144,7 +134,7 @@ print("\nRozpoczęcie etapu 2 - fine-tuning...")
 model.load_weights(os.path.join(tl_models_dir, 'best_model_stage1.h5'))
 
 # Odmrożenie kilku ostatnich warstw
-for layer in base_model.layers[-20:]:  # Odmrażamy 20 ostatnich warstw
+for layer in base_model.layers[-20:]:  # 20 ostatnich warstw
     layer.trainable = True
 
 # Rekompilacja modelu z mniejszą stopą uczenia
@@ -154,7 +144,6 @@ model.compile(
     metrics=['accuracy']
 )
 
-# Aktualizacja callbacka dla zapisywania modelu
 checkpoint = ModelCheckpoint(
     os.path.join(tl_models_dir, 'best_model_stage2.h5'),
     monitor='val_accuracy',
@@ -178,19 +167,15 @@ history_stage2 = model.fit(
 training_time = time.time() - start_time
 print(f"Całkowity czas treningu: {training_time:.2f} sekund")
 
-# Zapisz historię treningu etapu 2
 np.save(os.path.join(tl_results_dir, 'training_history_stage2.npy'), history_stage2.history)
 
-# Wczytaj najlepszy model
 model.load_weights(os.path.join(tl_models_dir, 'best_model_stage2.h5'))
 
-# Połącz historie treningu z obu etapów
 combined_accuracy = history_stage1.history['accuracy'] + history_stage2.history['accuracy']
 combined_val_accuracy = history_stage1.history['val_accuracy'] + history_stage2.history['val_accuracy']
 combined_loss = history_stage1.history['loss'] + history_stage2.history['loss']
 combined_val_loss = history_stage1.history['val_loss'] + history_stage2.history['val_loss']
 
-# Wizualizacja połączonej historii treningu
 plt.figure(figsize=(12, 6))
 plt.subplot(1, 2, 1)
 plt.plot(combined_accuracy, label='Trening')
@@ -214,19 +199,16 @@ plt.tight_layout()
 plt.savefig(os.path.join(tl_plots_dir, 'training_history.png'))
 plt.show()
 
-# Ewaluacja modelu na zbiorze testowym
 print("Ewaluacja modelu...")
 test_generator.reset()
 results = model.evaluate(test_generator)
 print(f"Test loss: {results[0]:.4f}")
 print(f"Test accuracy: {results[1]:.4f}")
 
-# Przewidywania na zbiorze testowym
 test_generator.reset()
 y_pred_prob = model.predict(test_generator)
 y_pred = (y_pred_prob > 0.5).astype(int).flatten()
 
-# Pobierz rzeczywiste etykiety
 y_true = test_generator.classes
 
 # Macierz pomyłek
@@ -241,12 +223,10 @@ plt.title('Confusion Matrix - Transfer Learning (MobileNetV2)')
 plt.savefig(os.path.join(tl_plots_dir, 'confusion_matrix.png'))
 plt.show()
 
-# Raport klasyfikacji
 print("\nRaport klasyfikacji:")
 report = classification_report(y_true, y_pred, target_names=['Benign', 'Melanoma'])
 print(report)
 
-# Zapisz raport do pliku - POPRAWIONE KODOWANIE
 with open(os.path.join(tl_results_dir, 'classification_report.txt'), 'w', encoding='utf-8') as f:
     f.write(report)
 
@@ -266,11 +246,9 @@ plt.legend(loc='lower right')
 plt.savefig(os.path.join(tl_plots_dir, 'roc_curve.png'))
 plt.show()
 
-# Zapisz model w formacie TensorFlow SavedModel
 model.save(os.path.join(tl_models_dir, 'mobilenetv2_model'))
 print(f"Model zapisany w: {os.path.join(tl_models_dir, 'mobilenetv2_model')}")
 
-# Zapisz podsumowanie wyników - POPRAWIONE KODOWANIE
 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 with open(os.path.join(tl_results_dir, 'results_summary.txt'), 'w', encoding='utf-8') as f:
     f.write(f"Transfer Learning (MobileNetV2) Results Summary\n")

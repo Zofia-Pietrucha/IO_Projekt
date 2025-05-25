@@ -1,4 +1,3 @@
-# rf_model_improved.py
 import numpy as np
 import os
 import matplotlib.pyplot as plt
@@ -20,16 +19,14 @@ from skimage.segmentation import slic
 from skimage.color import rgb2hsv, rgb2lab
 import pickle
 
-# Tworzenie struktury folderów dla wyników Random Forest Improved
+
 rf_improved_results_dir = "results/random_forest_improved"
 rf_improved_models_dir = os.path.join(rf_improved_results_dir, "models")
 rf_improved_plots_dir = os.path.join(rf_improved_results_dir, "plots")
 
-# Tworzymy foldery, jeśli nie istnieją
 for dir_path in [rf_improved_results_dir, rf_improved_models_dir, rf_improved_plots_dir]:
     os.makedirs(dir_path, exist_ok=True)
 
-# Ścieżki do danych
 base_dir = "data/skin_moles"
 train_dir = os.path.join(base_dir, "train")
 test_dir = os.path.join(base_dir, "test")
@@ -186,7 +183,6 @@ def extract_enhanced_features(img_path):
         # === DODATKOWE CECHY STATYSTYCZNE ===
         # Momenty statystyczne
         for channel in [r, g, b]:
-            # Skewness i kurtosis
             mean_ch = np.mean(channel)
             std_ch = np.std(channel)
             if std_ch > 0:
@@ -196,21 +192,18 @@ def extract_enhanced_features(img_path):
                 skewness = kurtosis = 0
             features.extend([skewness, kurtosis])
         
-        # Dodajemy wybrane cechy z LBP histogramu (top 10)
         features.extend(lbp_hist[:10])
         
         return np.array(features)
         
     except Exception as e:
         print(f"Błąd podczas ekstrakcji cech z {img_path}: {e}")
-        return np.zeros(200)  # Zwróć wektor zer w przypadku błędu
+        return np.zeros(200)
 
-# Przygotowanie danych treningowych
 print("Ekstrakcja cech ze zbioru treningowego...")
 X_train = []
 y_train = []
 
-# Wczytaj obrazy benign ze zbioru treningowego
 print("Wczytywanie obrazów benign (treningowe)...")
 benign_files = os.listdir(train_benign_dir)
 for img_name in tqdm(benign_files, desc="Benign train"):
@@ -220,7 +213,6 @@ for img_name in tqdm(benign_files, desc="Benign train"):
         X_train.append(features)
         y_train.append(0)  # 0 dla benign
 
-# Wczytaj obrazy melanoma ze zbioru treningowego
 print("Wczytywanie obrazów melanoma (treningowe)...")
 melanoma_files = os.listdir(train_melanoma_dir)
 for img_name in tqdm(melanoma_files, desc="Melanoma train"):
@@ -230,7 +222,6 @@ for img_name in tqdm(melanoma_files, desc="Melanoma train"):
         X_train.append(features)
         y_train.append(1)  # 1 dla melanoma
 
-# Konwersja list na tablice numpy
 X_train = np.array(X_train)
 y_train = np.array(y_train)
 
@@ -238,7 +229,6 @@ print(f"Liczba próbek treningowych: {len(X_train)}")
 print(f"Liczba cech: {X_train.shape[1]}")
 print(f"Rozkład klas: {np.bincount(y_train)}")
 
-# Standaryzacja cech
 print("Standaryzacja cech...")
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
@@ -248,7 +238,6 @@ scaler_path = os.path.join(rf_improved_models_dir, 'feature_scaler.pkl')
 with open(scaler_path, 'wb') as f:
     pickle.dump(scaler, f)
 
-# Optymalizacja hiperparametrów
 print("Optymalizacja hiperparametrów...")
 param_grid = {
     'n_estimators': [200, 300],
@@ -279,12 +268,10 @@ print(f"Czas treningu: {training_time:.2f} sekund")
 # Najlepszy model
 best_rf = grid_search.best_estimator_
 
-# Przygotowanie danych testowych
 print("Ekstrakcja cech ze zbioru testowego...")
 X_test = []
 y_test = []
 
-# Wczytaj obrazy benign ze zbioru testowego
 print("Wczytywanie obrazów benign (testowe)...")
 benign_test_files = os.listdir(test_benign_dir)
 for img_name in tqdm(benign_test_files, desc="Benign test"):
@@ -294,7 +281,6 @@ for img_name in tqdm(benign_test_files, desc="Benign test"):
         X_test.append(features)
         y_test.append(0)  # 0 dla benign
 
-# Wczytaj obrazy melanoma ze zbioru testowego
 print("Wczytywanie obrazów melanoma (testowe)...")
 melanoma_test_files = os.listdir(test_melanoma_dir)
 for img_name in tqdm(melanoma_test_files, desc="Melanoma test"):
@@ -304,7 +290,6 @@ for img_name in tqdm(melanoma_test_files, desc="Melanoma test"):
         X_test.append(features)
         y_test.append(1)  # 1 dla melanoma
 
-# Konwersja i standaryzacja danych testowych
 X_test = np.array(X_test)
 y_test = np.array(y_test)
 X_test_scaled = scaler.transform(X_test)
@@ -312,7 +297,6 @@ X_test_scaled = scaler.transform(X_test)
 print(f"Liczba próbek testowych: {len(X_test)}")
 print(f"Rozkład klas testowych: {np.bincount(y_test)}")
 
-# Ewaluacja modelu
 print("Ewaluacja modelu...")
 y_pred = best_rf.predict(X_test_scaled)
 y_pred_proba = best_rf.predict_proba(X_test_scaled)[:, 1]
@@ -320,16 +304,13 @@ y_pred_proba = best_rf.predict_proba(X_test_scaled)[:, 1]
 accuracy = accuracy_score(y_test, y_pred)
 print(f"Dokładność ulepszonego Random Forest: {accuracy:.4f}")
 
-# Cross-validation score
 cv_scores = cross_val_score(best_rf, X_train_scaled, y_train, cv=5, scoring='f1')
 print(f"CV F1 Score: {cv_scores.mean():.4f} ± {cv_scores.std():.4f}")
 
-# Szczegółowy raport klasyfikacji
 print("\nRaport klasyfikacji:")
 report = classification_report(y_test, y_pred, target_names=['Benign', 'Melanoma'])
 print(report)
 
-# Zapisz raport do pliku
 with open(os.path.join(rf_improved_results_dir, 'classification_report.txt'), 'w') as f:
     f.write("Ulepszony Random Forest - Raport klasyfikacji\n")
     f.write("=" * 50 + "\n")
@@ -402,11 +383,9 @@ for color in ['R', 'G', 'B']:
 # LBP features
 feature_names.extend([f'LBP_{i}' for i in range(10)])
 
-# Dopasuj długość nazw do rzeczywistej liczby cech
 actual_features = X_train.shape[1]
 if len(feature_names) != actual_features:
     print(f"Uwaga: Liczba nazw cech ({len(feature_names)}) != liczba cech ({actual_features})")
-    # Dodaj brakujące nazwy
     while len(feature_names) < actual_features:
         feature_names.append(f'Feature_{len(feature_names)}')
 
@@ -426,13 +405,11 @@ plt.tight_layout()
 plt.savefig(os.path.join(rf_improved_plots_dir, 'feature_importance.png'), bbox_inches='tight')
 plt.show()
 
-# Zapisz najlepszy model
 model_path = os.path.join(rf_improved_models_dir, 'random_forest_improved_model.pkl')
 with open(model_path, 'wb') as f:
     pickle.dump(best_rf, f)
 print(f"Model zapisany do pliku: {model_path}")
 
-# Zapisz podsumowanie wyników
 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 with open(os.path.join(rf_improved_results_dir, 'results_summary.txt'), 'w') as f:
     f.write(f"Ulepszony Random Forest Model Results Summary\n")
@@ -458,7 +435,6 @@ with open(os.path.join(rf_improved_results_dir, 'results_summary.txt'), 'w') as 
 
 print("Trening i ewaluacja ulepszonego Random Forest zakończone!")
 
-# Funkcja predykcyjna
 def predict_skin_lesion_improved(image_path, model, scaler, threshold=0.5):
     """Predykcja dla pojedynczego obrazu z ulepszonym modelem."""
     try:

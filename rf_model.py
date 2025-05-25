@@ -1,4 +1,3 @@
-# rf_model.py
 import numpy as np
 import os
 import matplotlib.pyplot as plt
@@ -10,16 +9,13 @@ from tqdm import tqdm
 import time
 from datetime import datetime
 
-# Tworzenie struktury folderów dla wyników Random Forest
 rf_results_dir = "results/random_forest"
 rf_models_dir = os.path.join(rf_results_dir, "models")
 rf_plots_dir = os.path.join(rf_results_dir, "plots")
 
-# Tworzymy foldery, jeśli nie istnieją
 for dir_path in [rf_results_dir, rf_models_dir, rf_plots_dir]:
     os.makedirs(dir_path, exist_ok=True)
 
-# Ścieżki do danych
 base_dir = "data/skin_moles"
 train_dir = os.path.join(base_dir, "train")
 test_dir = os.path.join(base_dir, "test")
@@ -33,9 +29,7 @@ print("Przygotowanie danych dla klasyfikatora Random Forest...")
 
 # Funkcja do ekstrakcji cech z obrazu
 def extract_features(img_path):
-    # Wczytaj obraz i zmień jego rozmiar do 224x224
     img = load_img(img_path, target_size=(224, 224))
-    # Konwertuj do tablicy numpy i normalizuj
     img_array = img_to_array(img) / 255.0
     
     # Oblicz cechy koloru
@@ -63,7 +57,6 @@ def extract_features(img_path):
     g_kurt = np.mean(((img_array[:, :, 1] - g_mean) / g_std)**4) if g_std > 0 else 0
     b_kurt = np.mean(((img_array[:, :, 2] - b_mean) / b_std)**4) if b_std > 0 else 0
     
-    # Połącz wszystkie cechy w jeden wektor
     features = np.concatenate([
         [r_mean, g_mean, b_mean, r_std, g_std, b_std, r_skew, g_skew, b_skew, r_kurt, g_kurt, b_kurt], 
         r_hist, g_hist, b_hist
@@ -71,11 +64,9 @@ def extract_features(img_path):
     
     return features
 
-# Przygotowanie danych treningowych
 X_train = []
 y_train = []
 
-# Wczytaj obrazy benign ze zbioru treningowego
 print("Wczytywanie obrazów benign (treningowe)...")
 benign_files = os.listdir(train_benign_dir)
 for img_name in tqdm(benign_files):
@@ -83,7 +74,6 @@ for img_name in tqdm(benign_files):
     X_train.append(extract_features(img_path))
     y_train.append(0)  # 0 dla benign
 
-# Wczytaj obrazy melanoma ze zbioru treningowego
 print("Wczytywanie obrazów melanoma (treningowe)...")
 melanoma_files = os.listdir(train_melanoma_dir)
 for img_name in tqdm(melanoma_files):
@@ -91,14 +81,12 @@ for img_name in tqdm(melanoma_files):
     X_train.append(extract_features(img_path))
     y_train.append(1)  # 1 dla melanoma
 
-# Konwersja list na tablice numpy
 X_train = np.array(X_train)
 y_train = np.array(y_train)
 
 print(f"Liczba próbek treningowych: {len(X_train)}")
 print(f"Liczba cech: {X_train.shape[1]}")
 
-# Trenowanie modelu Random Forest
 print("Trenowanie klasyfikatora Random Forest...")
 start_time = time.time()
 
@@ -115,11 +103,9 @@ rf_classifier.fit(X_train, y_train)
 training_time = time.time() - start_time
 print(f"Czas treningu: {training_time:.2f} sekund")
 
-# Przygotowanie danych testowych
 X_test = []
 y_test = []
 
-# Wczytaj obrazy benign ze zbioru testowego
 print("Wczytywanie obrazów benign (testowe)...")
 benign_test_files = os.listdir(test_benign_dir)
 for img_name in tqdm(benign_test_files):
@@ -127,7 +113,6 @@ for img_name in tqdm(benign_test_files):
     X_test.append(extract_features(img_path))
     y_test.append(0)  # 0 dla benign
 
-# Wczytaj obrazy melanoma ze zbioru testowego
 print("Wczytywanie obrazów melanoma (testowe)...")
 melanoma_test_files = os.listdir(test_melanoma_dir)
 for img_name in tqdm(melanoma_test_files):
@@ -135,13 +120,11 @@ for img_name in tqdm(melanoma_test_files):
     X_test.append(extract_features(img_path))
     y_test.append(1)  # 1 dla melanoma
 
-# Konwersja list na tablice numpy
 X_test = np.array(X_test)
 y_test = np.array(y_test)
 
 print(f"Liczba próbek testowych: {len(X_test)}")
 
-# Ewaluacja modelu
 print("Ewaluacja modelu...")
 y_pred = rf_classifier.predict(X_test)
 y_pred_proba = rf_classifier.predict_proba(X_test)[:, 1]  # Prawdopodobieństwa dla klasy 1 (melanoma)
@@ -149,12 +132,10 @@ y_pred_proba = rf_classifier.predict_proba(X_test)[:, 1]  # Prawdopodobieństwa 
 accuracy = accuracy_score(y_test, y_pred)
 print(f"Dokładność klasyfikatora Random Forest: {accuracy:.4f}")
 
-# Szczegółowy raport klasyfikacji
 print("\nRaport klasyfikacji:")
 report = classification_report(y_test, y_pred, target_names=['Benign', 'Melanoma'])
 print(report)
 
-# Zapisz raport do pliku
 with open(os.path.join(rf_results_dir, 'classification_report.txt'), 'w') as f:
     f.write(report)
 

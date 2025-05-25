@@ -1,4 +1,3 @@
-# cnn_v4_model.py - Fixed version with corrected F1 metric implementation
 import numpy as np
 import os
 import matplotlib.pyplot as plt
@@ -18,12 +17,10 @@ from sklearn.metrics import confusion_matrix, classification_report, roc_curve, 
 from tensorflow.keras import backend as K
 import tensorflow_addons as tfa
 
-# Tworzenie struktury folderów dla wyników CNN v4
 cnn_v4_results_dir = "results/cnn_v4"
 cnn_v4_models_dir = os.path.join(cnn_v4_results_dir, "models")
 cnn_v4_plots_dir = os.path.join(cnn_v4_results_dir, "plots")
 
-# Tworzymy foldery, jeśli nie istnieją
 for dir_path in [cnn_v4_results_dir, cnn_v4_models_dir, cnn_v4_plots_dir]:
     os.makedirs(dir_path, exist_ok=True)
 
@@ -32,12 +29,10 @@ img_width, img_height = 224, 224
 batch_size = 32
 epochs = 40  # Zwiększona liczba epok
 
-# Ścieżki do danych
 base_dir = "data/skin_moles"
 train_dir = os.path.join(base_dir, "train")
 test_dir = os.path.join(base_dir, "test")
 
-# Policzmy liczbę próbek w każdej klasie, aby określić ważenie klas
 train_benign_dir = os.path.join(train_dir, "benign")
 train_melanoma_dir = os.path.join(train_dir, "melanoma")
 n_benign = len(os.listdir(train_benign_dir))
@@ -45,14 +40,12 @@ n_melanoma = len(os.listdir(train_melanoma_dir))
 total = n_benign + n_melanoma
 
 # Obliczenie wag klas (odwrotnie proporcjonalne do liczby próbek)
-# Zrównoważone ważenie - 2.5x dla melanoma zamiast 3x
 weight_for_benign = (1 / n_benign) * total / 2.0
 weight_for_melanoma = (1 / n_melanoma) * total / 2.0 * 2.5  # Zmniejszone z 3.0 na 2.5
 
 class_weights = {0: weight_for_benign, 1: weight_for_melanoma}
 print(f"Wagi klas: Benign={weight_for_benign:.3f}, Melanoma={weight_for_melanoma:.3f}")
 
-# Kombinowana funkcja straty - Focal Loss + Dice Loss
 def focal_dice_loss(gamma=2.0, alpha=0.25, dice_weight=0.5):
     def loss_function(y_true, y_pred):
         # Focal Loss
@@ -74,11 +67,9 @@ def focal_dice_loss(gamma=2.0, alpha=0.25, dice_weight=0.5):
     
     return loss_function
 
-# FIXED: Zdefiniowanie klasy F1Score jako subklasę tf.keras.metrics.Metric
 class F1Score(tf.keras.metrics.Metric):
     def __init__(self, name='f1_score', **kwargs):
         super(F1Score, self).__init__(name=name, **kwargs)
-        # Inicjalizacja state variables
         self.precision = tf.keras.metrics.Precision()
         self.recall = tf.keras.metrics.Recall()
         
@@ -88,7 +79,6 @@ class F1Score(tf.keras.metrics.Metric):
         self.recall.update_state(y_true, y_pred, sample_weight)
         
     def result(self):
-        # Obliczenie F1 score z precision i recall
         p = self.precision.result()
         r = self.recall.result()
         return 2 * ((p * r) / (p + r + K.epsilon()))
@@ -99,7 +89,6 @@ class F1Score(tf.keras.metrics.Metric):
         self.recall.reset_state()
 
 # Zaawansowana augmentacja danych dla zbioru treningowego
-# FIXED: Removed 'contrast_range' parameter which is not supported in your TensorFlow version
 train_datagen = ImageDataGenerator(
     rescale=1./255,
     rotation_range=180,           # Pełny zakres obrotów
@@ -115,10 +104,8 @@ train_datagen = ImageDataGenerator(
     preprocessing_function=None   # Można dodać niestandardową funkcję preprocessingu
 )
 
-# Generator dla danych testowych (tylko normalizacja)
 test_datagen = ImageDataGenerator(rescale=1./255)
 
-# Przygotowanie generatorów
 print("Przygotowanie generatorów danych...")
 train_generator = train_datagen.flow_from_directory(
     train_dir,
@@ -133,7 +120,7 @@ test_generator = test_datagen.flow_from_directory(
     target_size=(img_width, img_height),
     batch_size=batch_size,
     class_mode='binary',
-    shuffle=False  # Ważne dla ewaluacji!
+    shuffle=False
 )
 
 # Funkcja Squeeze-and-Excitation Block
@@ -159,7 +146,7 @@ def hybrid_residual_block(x, filters, kernel_size=3, stride=1, use_se=True, l2_r
     x = SeparableConv2D(filters, kernel_size, strides=stride, padding='same', 
                        depthwise_regularizer=l2(l2_reg), pointwise_regularizer=l2(l2_reg))(x)
     x = BatchNormalization()(x)
-    x = Activation('relu')(x)  # Changed from 'swish' to 'relu' for better compatibility
+    x = Activation('relu')(x)
     
     # Druga konwolucja
     x = SeparableConv2D(filters, kernel_size, padding='same', 
@@ -176,7 +163,7 @@ def hybrid_residual_block(x, filters, kernel_size=3, stride=1, use_se=True, l2_r
         shortcut = BatchNormalization()(shortcut)
     
     x = Add()([x, shortcut])
-    x = Activation('relu')(x)  # Changed from 'swish' to 'relu'
+    x = Activation('relu')(x)
     
     return x
 
@@ -191,7 +178,7 @@ def create_hybrid_model():
     # Początkowa konwolucja
     x = Conv2D(64, 7, strides=2, padding='same', kernel_regularizer=l2(0.0001))(inputs)
     x = BatchNormalization()(x)
-    x = Activation('relu')(x)  # Changed from 'swish' to 'relu'
+    x = Activation('relu')(x)
     x = MaxPooling2D(3, strides=2, padding='same')(x)
     
     # Pierwszy blok hybrydowy
@@ -218,11 +205,11 @@ def create_hybrid_model():
     x = GlobalAveragePooling2D()(x)
     
     # Warstwa w pełni połączona z dropout
-    x = Dense(512, activation='relu', kernel_regularizer=l2(0.0001))(x)  # Changed from 'swish' to 'relu'
+    x = Dense(512, activation='relu', kernel_regularizer=l2(0.0001))(x)
     x = BatchNormalization()(x)
     x = Dropout(0.3)(x)
     
-    x = Dense(128, activation='relu', kernel_regularizer=l2(0.0001))(x)  # Changed from 'swish' to 'relu'
+    x = Dense(128, activation='relu', kernel_regularizer=l2(0.0001))(x)
     x = BatchNormalization()(x)
     x = Dropout(0.2)(x)
     
@@ -237,14 +224,14 @@ def cosine_annealing_scheduler(epoch, lr_max=0.001, lr_min=1e-6, cycles=5):
     if cycles == 0:
         return lr_max
     
-    # Obliczamy długość cyklu w epokach
+    # długość cyklu w epokach
     cycle_length = epochs // cycles
     
-    # Obliczamy aktualny cykl i pozycję w cyklu
+    # aktualny cykl i pozycję w cyklu
     current_cycle = epoch // cycle_length
     position_in_cycle = epoch % cycle_length
     
-    # Obliczamy współczynnik w obecnym cyklu (od 0 do 1)
+    # współczynnik w obecnym cyklu (od 0 do 1)
     cycle_position = position_in_cycle / cycle_length
     
     # Cosine annealing formula
@@ -253,11 +240,9 @@ def cosine_annealing_scheduler(epoch, lr_max=0.001, lr_min=1e-6, cycles=5):
     
     return float(learning_rate)
 
-# Utwórz model
 print("Tworzenie modelu CNN v4...")
 model = create_hybrid_model()
 
-# Kompilacja modelu z kombinowaną funkcją straty i poprawioną metryką F1
 model.compile(
     optimizer=Adam(learning_rate=0.001),
     loss=focal_dice_loss(gamma=2.0, alpha=0.25, dice_weight=0.3),
@@ -270,24 +255,21 @@ model.compile(
     ]
 )
 
-# Podsumowanie architektury modelu
 model.summary()
 
-# Zapisz podsumowanie architektury do pliku
 with open(os.path.join(cnn_v4_results_dir, 'model_architecture.txt'), 'w') as f:
     model.summary(print_fn=lambda x: f.write(x + '\n'))
 
-# Przygotowanie callbacków
 checkpoint = ModelCheckpoint(
     os.path.join(cnn_v4_models_dir, 'best_model.h5'),
-    monitor='val_f1_score',  # Nazwa została zmieniona z 'val_f1_score_metric' na 'val_f1_score'
+    monitor='val_f1_score',
     save_best_only=True,
     mode='max',
     verbose=1
 )
 
 early_stopping = EarlyStopping(
-    monitor='val_f1_score',  # Nazwa została zmieniona
+    monitor='val_f1_score',
     patience=12,  # Większa cierpliwość
     restore_best_weights=True,
     verbose=1
@@ -326,10 +308,8 @@ history = model.fit(
 training_time = time.time() - start_time
 print(f"Czas treningu CNN v4: {training_time:.2f} sekund")
 
-# Zapisz historię treningu
 np.save(os.path.join(cnn_v4_results_dir, 'training_history.npy'), history.history)
 
-# Wczytaj najlepszy model (zapisany przez callback)
 model.load_weights(os.path.join(cnn_v4_models_dir, 'best_model.h5'))
 
 # Wizualizacja historii treningu (metryki w czasie)
@@ -432,7 +412,6 @@ for threshold in thresholds:
     precision_scores.append(precision)
     accuracy_scores.append(accuracy)
 
-# Znajdź próg z najlepszym F1
 best_idx = np.argmax(f1_scores)
 best_threshold = thresholds[best_idx]
 best_f1 = f1_scores[best_idx]
@@ -443,10 +422,8 @@ best_accuracy = accuracy_scores[best_idx]
 print(f"Optymalny próg decyzyjny: {best_threshold:.2f}")
 print(f"Przy tym progu: F1={best_f1:.4f}, Recall={best_recall:.4f}, Precision={best_precision:.4f}, Accuracy={best_accuracy:.4f}")
 
-# Użyj optymalnego progu do finalnych przewidywań
 y_pred = (y_pred_prob > best_threshold).astype(int).flatten()
 
-# Macierz pomyłek z optymalnym progiem
 cm = confusion_matrix(y_true, y_pred)
 plt.figure(figsize=(10, 8))
 sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
@@ -463,7 +440,6 @@ print("\nRaport klasyfikacji z optymalnym progiem:")
 report = classification_report(y_true, y_pred, target_names=['Benign', 'Melanoma'])
 print(report)
 
-# Zapisz raport do pliku
 with open(os.path.join(cnn_v4_results_dir, 'classification_report.txt'), 'w') as f:
     f.write(f"Raport klasyfikacji (próg={best_threshold:.2f}):\n")
     f.write(report)
@@ -504,11 +480,9 @@ plt.grid(True)
 plt.savefig(os.path.join(cnn_v4_plots_dir, 'threshold_metrics.png'))
 plt.show()
 
-# Zapisz model w formacie TensorFlow SavedModel
 model.save(os.path.join(cnn_v4_models_dir, 'cnn_v4_model'))
 print(f"Model zapisany w: {os.path.join(cnn_v4_models_dir, 'cnn_v4_model')}")
 
-# Zapisz podsumowanie wyników
 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 with open(os.path.join(cnn_v4_results_dir, 'results_summary.txt'), 'w') as f:
     f.write(f"CNN v4 Model Results Summary\n")
@@ -516,7 +490,6 @@ with open(os.path.join(cnn_v4_results_dir, 'results_summary.txt'), 'w') as f:
     f.write(f"Date: {timestamp}\n\n")
     f.write(f"Training time: {training_time:.2f} seconds\n")
     
-    # Zapisz wszystkie metryki z ewaluacji
     for i, metric in enumerate(metrics_names):
         f.write(f"Test {metric}: {results[i]:.4f}\n")
     

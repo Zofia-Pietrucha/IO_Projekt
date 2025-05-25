@@ -1,4 +1,3 @@
-# main.py - z implementacją nowego modelu XGBoost
 import os
 import sys
 import argparse
@@ -66,7 +65,6 @@ def split_data(source_dir, train_dir, test_dir, split_ratio=0.8, force_split=Fal
     
     files = os.listdir(source_dir)
     
-    # Jeśli folder docelowy jest już pełny i nie wymuszamy podziału, zakładamy, że dane są już podzielone
     train_files = os.listdir(train_dir) if os.path.exists(train_dir) else []
     test_files = os.listdir(test_dir) if os.path.exists(test_dir) else []
     
@@ -85,7 +83,6 @@ def split_data(source_dir, train_dir, test_dir, split_ratio=0.8, force_split=Fal
             for file in os.listdir(test_dir):
                 os.remove(os.path.join(test_dir, file))
     
-    # Pomieszaj dane i podziel na zbiory
     np.random.seed(42)  # Dla powtarzalności wyników
     np.random.shuffle(files)
     train_size = int(len(files) * split_ratio)
@@ -93,7 +90,6 @@ def split_data(source_dir, train_dir, test_dir, split_ratio=0.8, force_split=Fal
     train_files = files[:train_size]
     test_files = files[train_size:]
     
-    # Kopiuj pliki do katalogów treningowego i testowego
     for file_name in tqdm(train_files, desc=f"Kopiowanie plików treningowych z {os.path.basename(source_dir)}"):
         src = os.path.join(source_dir, file_name)
         dst = os.path.join(train_dir, file_name)
@@ -108,7 +104,6 @@ def split_data(source_dir, train_dir, test_dir, split_ratio=0.8, force_split=Fal
 
 def visualize_data_augmentation():
     """Wizualizuje augmentację danych na przykładowych obrazach."""
-    # Ścieżki do danych
     base_dir = "data/skin_moles"
     train_dir = os.path.join(base_dir, "train")
     train_benign_dir = os.path.join(train_dir, "benign")
@@ -148,7 +143,6 @@ def visualize_data_augmentation():
         plt.tight_layout()
         plt.show()
     
-    # Wybierz przykładowe obrazy
     benign_files = os.listdir(train_benign_dir)
     melanoma_files = os.listdir(train_melanoma_dir)
     
@@ -166,7 +160,6 @@ def visualize_data_augmentation():
 
 def prepare_data(split_ratio=0.8, force_split=False):
     """Przygotowuje dane - podział na zbiory treningowy i testowy."""
-    # Ścieżki do katalogów
     base_dir = "data/skin_moles"
     benign_dir = os.path.join(base_dir, "benign")
     melanoma_dir = os.path.join(base_dir, "melanoma")
@@ -179,7 +172,6 @@ def prepare_data(split_ratio=0.8, force_split=False):
     test_benign_dir = os.path.join(test_dir, "benign")
     test_melanoma_dir = os.path.join(test_dir, "melanoma")
 
-    # Sprawdź czy katalogi źródłowe istnieją
     if not os.path.exists(benign_dir) or not os.path.exists(melanoma_dir):
         print(f"Błąd: katalogi źródłowe {benign_dir} lub {melanoma_dir} nie istnieją.")
         print("Upewnij się, że struktura folderów jest poprawna i dane są na swoim miejscu.")

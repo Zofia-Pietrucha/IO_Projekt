@@ -1,4 +1,3 @@
-# cnn_v3_model.py
 import numpy as np
 import os
 import matplotlib.pyplot as plt
@@ -16,12 +15,10 @@ from sklearn.metrics import confusion_matrix, classification_report, roc_curve, 
 import tensorflow as tf
 from tensorflow.keras import backend as K
 
-# Tworzenie struktury folderów dla wyników CNN v3
 cnn_v3_results_dir = "results/cnn_v3"
 cnn_v3_models_dir = os.path.join(cnn_v3_results_dir, "models")
 cnn_v3_plots_dir = os.path.join(cnn_v3_results_dir, "plots")
 
-# Tworzymy foldery, jeśli nie istnieją
 for dir_path in [cnn_v3_results_dir, cnn_v3_models_dir, cnn_v3_plots_dir]:
     os.makedirs(dir_path, exist_ok=True)
 
@@ -30,12 +27,11 @@ img_width, img_height = 224, 224
 batch_size = 32
 epochs = 30  # Zwiększona liczba epok
 
-# Ścieżki do danych
 base_dir = "data/skin_moles"
 train_dir = os.path.join(base_dir, "train")
 test_dir = os.path.join(base_dir, "test")
 
-# Policzmy liczbę próbek w każdej klasie, aby określić ważenie klas
+# ważenie klas
 train_benign_dir = os.path.join(train_dir, "benign")
 train_melanoma_dir = os.path.join(train_dir, "melanoma")
 n_benign = len(os.listdir(train_benign_dir))
@@ -43,7 +39,6 @@ n_melanoma = len(os.listdir(train_melanoma_dir))
 total = n_benign + n_melanoma
 
 # Obliczenie wag klas (odwrotnie proporcjonalne do liczby próbek)
-# Dajemy znacznie większą wagę klasie melanoma (3x), aby zwiększyć jej czułość
 weight_for_benign = (1 / n_benign) * total / 2.0
 weight_for_melanoma = (1 / n_melanoma) * total / 2.0 * 3.0  # Zwiększono 3x zamiast 1.5x
 
@@ -84,7 +79,6 @@ train_datagen = ImageDataGenerator(
 # Generator dla danych testowych (tylko normalizacja)
 test_datagen = ImageDataGenerator(rescale=1./255)
 
-# Przygotowanie generatorów
 print("Przygotowanie generatorów danych...")
 train_generator = train_datagen.flow_from_directory(
     train_dir,
@@ -99,7 +93,7 @@ test_generator = test_datagen.flow_from_directory(
     target_size=(img_width, img_height),
     batch_size=batch_size,
     class_mode='binary',
-    shuffle=False  # Ważne dla ewaluacji!
+    shuffle=False
 )
 
 # Funkcja tworząca blok residualny
@@ -160,7 +154,6 @@ def create_resnet_model():
     model = Model(inputs=inputs, outputs=outputs)
     return model
 
-# Utwórz model
 print("Tworzenie modelu CNN v3...")
 model = create_resnet_model()
 
@@ -176,17 +169,14 @@ model.compile(
     ]
 )
 
-# Podsumowanie architektury modelu
 model.summary()
 
-# Zapisz podsumowanie architektury do pliku
 with open(os.path.join(cnn_v3_results_dir, 'model_architecture.txt'), 'w') as f:
     model.summary(print_fn=lambda x: f.write(x + '\n'))
 
-# Przygotowanie callbacków
 checkpoint = ModelCheckpoint(
     os.path.join(cnn_v3_models_dir, 'best_model.h5'),
-    monitor='val_recall',  # Monitorujemy czułość (recall)
+    monitor='val_recall',  # czułość (recall)
     save_best_only=True,
     mode='max',
     verbose=1
@@ -209,7 +199,6 @@ reduce_lr = ReduceLROnPlateau(
 
 callbacks = [checkpoint, early_stopping, reduce_lr]
 
-# Trening modelu
 print("Rozpoczęcie treningu modelu CNN v3...")
 start_time = time.time()
 
@@ -226,10 +215,8 @@ history = model.fit(
 training_time = time.time() - start_time
 print(f"Czas treningu CNN v3: {training_time:.2f} sekund")
 
-# Zapisz historię treningu
 np.save(os.path.join(cnn_v3_results_dir, 'training_history.npy'), history.history)
 
-# Wczytaj najlepszy model (zapisany przez callback)
 model.load_weights(os.path.join(cnn_v3_models_dir, 'best_model.h5'))
 
 # Wizualizacja historii treningu (3 wykresy: dokładność, funkcja straty, recall)
@@ -266,7 +253,6 @@ plt.tight_layout()
 plt.savefig(os.path.join(cnn_v3_plots_dir, 'training_history.png'))
 plt.show()
 
-# Ewaluacja modelu na zbiorze testowym z domyślnym progiem 0.5
 print("Ewaluacja modelu CNN v3 z progiem 0.5...")
 test_generator.reset()
 results = model.evaluate(test_generator)
@@ -276,12 +262,10 @@ print(f"Test recall: {results[2]:.4f}")
 print(f"Test precision: {results[3]:.4f}")
 print(f"Test AUC: {results[4]:.4f}")
 
-# Przewidywania na zbiorze testowym
 test_generator.reset()
 y_pred_prob = model.predict(test_generator)
 y_true = test_generator.classes
 
-# Znajdź optymalny próg decyzyjny maksymalizujący F1
 print("\nSzukanie optymalnego progu decyzyjnego...")
 thresholds = np.arange(0.1, 0.9, 0.01)
 f1_scores = []
@@ -290,7 +274,7 @@ precision_scores = []
 
 for threshold in thresholds:
     y_pred = (y_pred_prob > threshold).astype(int).flatten()
-    # Obliczamy F1 dla klasy melanoma (pozytywnej)
+    # F1 dla klasy melanoma (pozytywnej)
     true_positives = np.sum((y_true == 1) & (y_pred == 1))
     false_positives = np.sum((y_true == 0) & (y_pred == 1))
     false_negatives = np.sum((y_true == 1) & (y_pred == 0))
@@ -303,7 +287,7 @@ for threshold in thresholds:
     recall_scores.append(recall)
     precision_scores.append(precision)
 
-# Znajdź próg z najlepszym F1
+# próg z najlepszym F1
 best_idx = np.argmax(f1_scores)
 best_threshold = thresholds[best_idx]
 best_f1 = f1_scores[best_idx]
@@ -313,7 +297,6 @@ best_precision = precision_scores[best_idx]
 print(f"Optymalny próg decyzyjny: {best_threshold:.2f}")
 print(f"Przy tym progu: F1={best_f1:.4f}, Recall={best_recall:.4f}, Precision={best_precision:.4f}")
 
-# Użyj optymalnego progu do finalnych przewidywań
 y_pred = (y_pred_prob > best_threshold).astype(int).flatten()
 
 # Macierz pomyłek z optymalnym progiem
@@ -373,11 +356,9 @@ plt.grid(True)
 plt.savefig(os.path.join(cnn_v3_plots_dir, 'threshold_metrics.png'))
 plt.show()
 
-# Zapisz model w formacie TensorFlow SavedModel (dla aplikacji webowej)
 model.save(os.path.join(cnn_v3_models_dir, 'cnn_v3_model'))
 print(f"Model zapisany w: {os.path.join(cnn_v3_models_dir, 'cnn_v3_model')}")
 
-# Zapisz podsumowanie wyników
 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 with open(os.path.join(cnn_v3_results_dir, 'results_summary.txt'), 'w') as f:
     f.write(f"CNN v3 Model Results Summary\n")
@@ -403,12 +384,10 @@ with open(os.path.join(cnn_v3_results_dir, 'results_summary.txt'), 'w') as f:
 
 print("Trening i ewaluacja modelu CNN v3 zakończone!")
 
-# Dodajmy funkcję do predykcji na pojedynczym obrazie
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
 
 def predict_skin_lesion(image_path, model, threshold=0.5):
     """Predykcja dla pojedynczego obrazu znamienia skórnego."""
-    # Wczytaj i przygotuj obraz
     img = load_img(image_path, target_size=(img_width, img_height))
     img_array = img_to_array(img) / 255.0
     img_array = np.expand_dims(img_array, axis=0)  # Dodaj wymiar batcha
@@ -426,9 +405,3 @@ def predict_skin_lesion(image_path, model, threshold=0.5):
         "raw_probability": float(prediction)
     }
 
-# Przykład użycia (odkomentuj, aby przetestować na konkretnym obrazie)
-# test_image = "path/to/test/image.jpg"
-# result = predict_skin_lesion(test_image, model, threshold=best_threshold)
-# print(f"Predykcja: {result['prediction']}")
-# print(f"Pewność: {result['confidence']*100:.2f}%")
-# print(f"Prawdopodobieństwo melanomy: {result['raw_probability']*100:.2f}%")

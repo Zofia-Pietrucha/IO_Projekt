@@ -33,14 +33,14 @@ model_config = None
 try:
     print("Ładowanie modelu hybrydowego...")
     
-    # Załaduj feature extractor (MobileNetV2)
+    # feature extractor (MobileNetV2)
     if os.path.exists(FEATURE_EXTRACTOR_PATH):
         feature_extractor = tf.keras.models.load_model(FEATURE_EXTRACTOR_PATH)
         print("✅ Feature extractor załadowany")
     else:
         print(f"❌ Nie znaleziono feature extractor: {FEATURE_EXTRACTOR_PATH}")
     
-    # Załaduj XGBoost model
+    # XGBoost model
     if os.path.exists(XGBOOST_MODEL_PATH):
         with open(XGBOOST_MODEL_PATH, 'rb') as f:
             xgb_model = pickle.load(f)
@@ -56,7 +56,7 @@ try:
     else:
         print(f"❌ Nie znaleziono scaler: {SCALER_PATH}")
     
-    # Załaduj konfigurację modelu
+    # konfigurację modelu
     if os.path.exists(CONFIG_PATH):
         with open(CONFIG_PATH, 'rb') as f:
             model_config = pickle.load(f)
@@ -172,7 +172,6 @@ def extract_traditional_features(image_path):
 def extract_hybrid_features(image_path):
     """Ekstraktuje zarówno głębokie cechy (MobileNetV2) jak i tradycyjne cechy."""
     try:
-        # Wczytaj i przygotuj obraz
         img = load_img(image_path, target_size=(224, 224))
         img_array = img_to_array(img)
         
@@ -198,7 +197,6 @@ def extract_hybrid_features(image_path):
 def predict_image(image_path):
     """Klasyfikacja znamienia skórnego z pliku obrazu przy użyciu modelu hybrydowego."""
     try:
-        # Sprawdź czy wszystkie komponenty są załadowane
         if not all([feature_extractor, xgb_model, scaler]):
             return {"error": "Model nie został poprawnie załadowany"}
         
@@ -250,7 +248,6 @@ def upload_file():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
         
-        # Sprawdź czy modele są załadowane
         if not all([feature_extractor, xgb_model, scaler]):
             return jsonify({'error': 'Model hybrydowy nie został poprawnie załadowany'}), 500
 

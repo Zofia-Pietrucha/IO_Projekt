@@ -1,4 +1,3 @@
-# xgboost_model.py
 import numpy as np
 import os
 import matplotlib.pyplot as plt
@@ -10,19 +9,16 @@ import xgboost as xgb
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, roc_curve, auc, f1_score
 from tensorflow.keras.preprocessing.image import img_to_array, load_img
 import pickle
-import cv2  # Używamy OpenCV zamiast skimage
+import cv2
 from scipy import ndimage
 
-# Tworzenie struktury folderów dla wyników XGBoost
 xgb_results_dir = "results/xgboost"
 xgb_models_dir = os.path.join(xgb_results_dir, "models")
 xgb_plots_dir = os.path.join(xgb_results_dir, "plots")
 
-# Tworzymy foldery, jeśli nie istnieją
 for dir_path in [xgb_results_dir, xgb_models_dir, xgb_plots_dir]:
     os.makedirs(dir_path, exist_ok=True)
 
-# Ścieżki do danych
 base_dir = "data/skin_moles"
 train_dir = os.path.join(base_dir, "train")
 test_dir = os.path.join(base_dir, "test")
@@ -34,23 +30,17 @@ test_melanoma_dir = os.path.join(test_dir, "melanoma")
 
 print("Przygotowanie danych dla klasyfikatora XGBoost...")
 
-# Funkcja do ekstrakcji cech z obrazu
 def extract_features(img_path):
-    # Wczytaj obraz i zmień jego rozmiar do 224x224
     img = load_img(img_path, target_size=(224, 224))
-    # Konwertuj do tablicy numpy i normalizuj
     img_array = img_to_array(img) / 255.0
     
-    # Rozdzielamy kanały RGB
     r, g, b = img_array[:, :, 0], img_array[:, :, 1], img_array[:, :, 2]
     
-    # Konwersja do przestrzeni kolorów HSV używając OpenCV
-    # Najpierw konwertujemy do formatu wymaganego przez OpenCV
     img_cv = (img_array * 255).astype(np.uint8)
     hsv = cv2.cvtColor(img_cv, cv2.COLOR_RGB2HSV) / 255.0
     h, s, v = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
     
-    # Oblicz cechy koloru dla RGB
+    # Cechy koloru dla RGB
     # Średnie wartości
     r_mean = np.mean(r)
     g_mean = np.mean(g)
@@ -61,7 +51,7 @@ def extract_features(img_path):
     g_std = np.std(g)
     b_std = np.std(b)
     
-    # Oblicz cechy koloru dla HSV
+    # Cechy koloru dla HSV
     # Średnie wartości
     h_mean = np.mean(h)
     s_mean = np.mean(s)
@@ -128,7 +118,6 @@ def extract_features(img_path):
     gradient_max = np.max(magnitude)
     
     # Uproszczone cechy tekstury
-    # Konwersja do uint8 dla obliczeń
     gray_uint8 = (gray * 255).astype(np.uint8)
     
     # Obliczanie tekstury przy użyciu filtrów OpenCV
@@ -139,7 +128,6 @@ def extract_features(img_path):
     # Entropie dla poszczególnych kanałów - miara różnorodności struktur
     from scipy.stats import entropy
     
-    # Funkcja do obliczania entropii
     def calculate_entropy(img_channel):
         hist, _ = np.histogram(img_channel, bins=25, range=(0, 1), density=True)
         return entropy(hist + 1e-10)  # Małe epsilon dla uniknięcia log(0)
@@ -199,11 +187,9 @@ def extract_features(img_path):
     
     return features
 
-# Przygotowanie danych treningowych
 X_train = []
 y_train = []
 
-# Wczytaj obrazy benign ze zbioru treningowego
 print("Wczytywanie obrazów benign (treningowe)...")
 benign_files = os.listdir(train_benign_dir)
 for img_name in tqdm(benign_files):
@@ -214,7 +200,6 @@ for img_name in tqdm(benign_files):
     except Exception as e:
         print(f"Błąd przetwarzania {img_path}: {e}")
 
-# Wczytaj obrazy melanoma ze zbioru treningowego
 print("Wczytywanie obrazów melanoma (treningowe)...")
 melanoma_files = os.listdir(train_melanoma_dir)
 for img_name in tqdm(melanoma_files):
@@ -225,7 +210,6 @@ for img_name in tqdm(melanoma_files):
     except Exception as e:
         print(f"Błąd przetwarzania {img_path}: {e}")
 
-# Konwersja list na tablice numpy
 X_train = np.array(X_train)
 y_train = np.array(y_train)
 
@@ -233,11 +217,9 @@ print(f"Liczba próbek treningowych: {len(X_train)}")
 print(f"Liczba cech: {X_train.shape[1]}")
 print(f"Rozkład klas treningowych: {np.bincount(y_train)}")
 
-# Trenowanie modelu XGBoost
 print("Trenowanie klasyfikatora XGBoost...")
 start_time = time.time()
 
-# Definiowanie modelu XGBoost z zaawansowanymi parametrami
 xgb_model = xgb.XGBClassifier(
     n_estimators=200,              # Zmniejszona liczba drzew dla szybszego treningu
     learning_rate=0.1,             # Zwiększony learning rate
@@ -256,8 +238,7 @@ xgb_model = xgb.XGBClassifier(
     n_jobs=-1                      # Wykorzystanie wszystkich dostępnych rdzeni CPU
 )
 
-# Trenowanie z ewaluacją na bieżąco
-eval_set = [(X_train, y_train)]  # W praktyce warto wydzielić zbiór walidacyjny
+eval_set = [(X_train, y_train)]
 xgb_model.fit(
     X_train, y_train,
     eval_set=eval_set,
@@ -267,11 +248,9 @@ xgb_model.fit(
 training_time = time.time() - start_time
 print(f"Czas treningu: {training_time:.2f} sekund")
 
-# Przygotowanie danych testowych
 X_test = []
 y_test = []
 
-# Wczytaj obrazy benign ze zbioru testowego
 print("Wczytywanie obrazów benign (testowe)...")
 benign_test_files = os.listdir(test_benign_dir)
 for img_name in tqdm(benign_test_files):
@@ -293,14 +272,12 @@ for img_name in tqdm(melanoma_test_files):
     except Exception as e:
         print(f"Błąd przetwarzania {img_path}: {e}")
 
-# Konwersja list na tablice numpy
 X_test = np.array(X_test)
 y_test = np.array(y_test)
 
 print(f"Liczba próbek testowych: {len(X_test)}")
 print(f"Rozkład klas testowych: {np.bincount(y_test)}")
 
-# Ewaluacja modelu
 print("Ewaluacja modelu XGBoost...")
 y_pred_prob = xgb_model.predict_proba(X_test)[:, 1]  # Prawdopodobieństwa dla klasy 1 (melanoma)
 y_pred = xgb_model.predict(X_test)
@@ -308,7 +285,6 @@ y_pred = xgb_model.predict(X_test)
 accuracy = accuracy_score(y_test, y_pred)
 print(f"Dokładność klasyfikatora XGBoost: {accuracy:.4f}")
 
-# Znajdź optymalny próg decyzyjny maksymalizujący F1 dla melanoma
 print("\nSzukanie optymalnego progu decyzyjnego dla melanomy...")
 thresholds = np.arange(0.1, 0.9, 0.01)
 f1_scores = []
@@ -334,7 +310,6 @@ for threshold in thresholds:
     precision_scores.append(precision)
     accuracy_scores.append(accuracy)
 
-# Znajdź próg z najlepszym F1
 best_idx = np.argmax(f1_scores)
 best_threshold = thresholds[best_idx]
 best_f1 = f1_scores[best_idx]
@@ -345,15 +320,12 @@ best_accuracy = accuracy_scores[best_idx]
 print(f"Optymalny próg decyzyjny: {best_threshold:.2f}")
 print(f"Przy tym progu: F1={best_f1:.4f}, Recall={best_recall:.4f}, Precision={best_precision:.4f}, Accuracy={best_accuracy:.4f}")
 
-# Używamy optymalnego progu do finalnych przewidywań
 y_pred_best = (y_pred_prob > best_threshold).astype(int)
 
-# Szczegółowy raport klasyfikacji z optymalnym progiem
 print("\nRaport klasyfikacji z optymalnym progiem:")
 report = classification_report(y_test, y_pred_best, target_names=['Benign', 'Melanoma'])
 print(report)
 
-# Zapisz raport do pliku
 with open(os.path.join(xgb_results_dir, 'classification_report.txt'), 'w') as f:
     f.write(f"Raport klasyfikacji (próg={best_threshold:.2f}):\n")
     f.write(report)
@@ -417,13 +389,11 @@ plt.title('Top 20 najważniejszych cech - XGBoost')
 plt.savefig(os.path.join(xgb_plots_dir, 'feature_importance.png'))
 plt.show()
 
-# Zapisz model
 model_path = os.path.join(xgb_models_dir, 'xgboost_model.pkl')
 with open(model_path, 'wb') as f:
     pickle.dump(xgb_model, f)
 print(f"Model zapisany do pliku: {model_path}")
 
-# Zapisz podsumowanie wyników
 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 with open(os.path.join(xgb_results_dir, 'results_summary.txt'), 'w') as f:
     f.write(f"XGBoost Model Results Summary\n")
@@ -438,7 +408,7 @@ with open(os.path.join(xgb_results_dir, 'results_summary.txt'), 'w') as f:
     for param, value in xgb_model.get_params().items():
         f.write(f"{param}: {value}\n")
     
-    # Zapisz też 10 najważniejszych cech
+    # 10 najważniejszych cech
     f.write("\nTop 10 Feature Importance:\n")
     importance = xgb_model.feature_importances_
     indices = np.argsort(importance)[::-1]
@@ -447,7 +417,6 @@ with open(os.path.join(xgb_results_dir, 'results_summary.txt'), 'w') as f:
 
 print("Trening i ewaluacja klasyfikatora XGBoost zakończone!")
 
-# Funkcja predykcyjna dla pojedynczego obrazu
 def predict_skin_lesion(image_path, model, threshold=0.5):
     """Predykcja dla pojedynczego obrazu znamienia skórnego."""
     try:
@@ -458,7 +427,6 @@ def predict_skin_lesion(image_path, model, threshold=0.5):
         # Predykcja
         prob = model.predict_proba(features)[0, 1]
         
-        # Zastosuj próg decyzyjny
         result = "Melanoma" if prob > threshold else "Benign"
         confidence = prob if result == "Melanoma" else 1 - prob
         
@@ -471,10 +439,3 @@ def predict_skin_lesion(image_path, model, threshold=0.5):
         return {
             "error": str(e)
         }
-
-# Przykład użycia (odkomentuj, aby przetestować na konkretnym obrazie)
-# test_image = "path/to/test/image.jpg"
-# result = predict_skin_lesion(test_image, xgb_model, threshold=best_threshold)
-# print(f"Predykcja: {result['prediction']}")
-# print(f"Pewność: {result['confidence']*100:.2f}%")
-# print(f"Prawdopodobieństwo melanomy: {result['raw_probability']*100:.2f}%")
