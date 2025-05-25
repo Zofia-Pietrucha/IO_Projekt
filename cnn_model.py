@@ -63,7 +63,7 @@ test_generator = test_datagen.flow_from_directory(
 
 # Definicja modelu CNN
 model = Sequential([
-    # Pierwszy blok konwolucyjny
+    # Pierwszy blok konwolucyjny, proste wzorce (brzegi, linie)
     Conv2D(32, (3, 3), activation='relu', padding='same', input_shape=(img_width, img_height, 3)),
     BatchNormalization(),
     Conv2D(32, (3, 3), activation='relu', padding='same'),
@@ -71,7 +71,7 @@ model = Sequential([
     MaxPooling2D(pool_size=(2, 2)),
     Dropout(0.25),
     
-    # Drugi blok konwolucyjny
+    # Drugi blok konwolucyjny, średniej złożoności (zakrzywienia, tekstury)  
     Conv2D(64, (3, 3), activation='relu', padding='same'),
     BatchNormalization(),
     Conv2D(64, (3, 3), activation='relu', padding='same'),
@@ -79,7 +79,7 @@ model = Sequential([
     MaxPooling2D(pool_size=(2, 2)),
     Dropout(0.25),
     
-    # Trzeci blok konwolucyjny
+    # Trzeci blok konwolucyjny, złożone wzorce (kształty znamion)
     Conv2D(128, (3, 3), activation='relu', padding='same'),
     BatchNormalization(),
     Conv2D(128, (3, 3), activation='relu', padding='same'),

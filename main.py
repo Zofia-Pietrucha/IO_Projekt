@@ -255,13 +255,19 @@ def run_xgboost():
 def run_efficientnet():
     """Uruchamia model EfficientNet."""
     print("Uruchamianie modelu EfficientNet...")
-    import efficientnet_model
+    import Projekt_spam.efficientnet_model as efficientnet_model
     print("Model EfficientNet zakończył działanie.")
+
+def run_hybrid():
+    """Uruchamia model hybrydowy TL+XGBoost."""
+    print("Uruchamianie modelu hybrydowego TL+XGBoost...")
+    import hybrid_tl_xgb_model
+    print("Model hybrydowy zakończył działanie.")
 
 def main():
     parser = argparse.ArgumentParser(description='Klasyfikacja znamion skórnych: benign vs. melanoma')
     parser.add_argument('--model', type=str, 
-                    choices=['rf', 'rf_improved', 'cnn', 'cnn_improved', 'cnn_v3', 'cnn_v4', 'tl', 'xgb', 'effnet', 'all'], 
+                    choices=['rf', 'rf_improved', 'cnn', 'cnn_improved', 'cnn_v3', 'cnn_v4', 'tl', 'xgb', 'effnet', 'hybrid', 'all'], 
                     default='all', help='Wybierz model do uruchomienia')
     parser.add_argument('--split-ratio', type=float, default=0.8,
                         help='Proporcja podziału na zbiór treningowy (domyślnie: 0.8)')
@@ -312,6 +318,9 @@ def main():
     
     if args.model == 'effnet' or args.model == 'all':
         run_efficientnet()
+
+    if args.model == 'hybrid' or args.model == 'all':
+        run_hybrid()
 
 if __name__ == "__main__":
     main()

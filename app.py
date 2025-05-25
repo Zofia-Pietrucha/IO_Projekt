@@ -1,11 +1,13 @@
 import os
 import numpy as np
 import tensorflow as tf
-import pickle  # Dodaj import dla obsługi plików .pkl
-import cv2  # Potrzebne do przetwarzania obrazów
+import pickle
+import cv2
 from flask import Flask, request, render_template, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
+from tensorflow.keras.models import Model
+from scipy.stats import entropy
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -14,76 +16,101 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # Maksymalny rozmiar: 16MB
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Ścieżka do modelu XGBoost
-MODEL_PATH = 'results/xgboost/models/xgboost_model.pkl'
+# Ścieżki do modelu hybrydowego
+HYBRID_MODELS_DIR = 'results/hybrid_tl_xgb/models'
+FEATURE_EXTRACTOR_PATH = os.path.join(HYBRID_MODELS_DIR, 'feature_extractor')
+XGBOOST_MODEL_PATH = os.path.join(HYBRID_MODELS_DIR, 'xgboost_hybrid.pkl')
+SCALER_PATH = os.path.join(HYBRID_MODELS_DIR, 'scaler.pkl')
+CONFIG_PATH = os.path.join(HYBRID_MODELS_DIR, 'model_config.pkl')
 
-# Załadowanie modelu XGBoost
+# Globalne zmienne dla modeli
+feature_extractor = None
+xgb_model = None
+scaler = None
+model_config = None
+
+# Załadowanie modeli
 try:
-    with open(MODEL_PATH, 'rb') as f:
-        model = pickle.load(f)
-    print("Model XGBoost załadowany pomyślnie!")
+    print("Ładowanie modelu hybrydowego...")
+    
+    # Załaduj feature extractor (MobileNetV2)
+    if os.path.exists(FEATURE_EXTRACTOR_PATH):
+        feature_extractor = tf.keras.models.load_model(FEATURE_EXTRACTOR_PATH)
+        print("✅ Feature extractor załadowany")
+    else:
+        print(f"❌ Nie znaleziono feature extractor: {FEATURE_EXTRACTOR_PATH}")
+    
+    # Załaduj XGBoost model
+    if os.path.exists(XGBOOST_MODEL_PATH):
+        with open(XGBOOST_MODEL_PATH, 'rb') as f:
+            xgb_model = pickle.load(f)
+        print("✅ XGBoost model załadowany")
+    else:
+        print(f"❌ Nie znaleziono XGBoost model: {XGBOOST_MODEL_PATH}")
+    
+    # Załaduj scaler
+    if os.path.exists(SCALER_PATH):
+        with open(SCALER_PATH, 'rb') as f:
+            scaler = pickle.load(f)
+        print("✅ Scaler załadowany")
+    else:
+        print(f"❌ Nie znaleziono scaler: {SCALER_PATH}")
+    
+    # Załaduj konfigurację modelu
+    if os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, 'rb') as f:
+            model_config = pickle.load(f)
+        print("✅ Konfiguracja modelu załadowana")
+        print(f"   Optymalny próg: {model_config.get('best_threshold', 0.5)}")
+    else:
+        print(f"❌ Nie znaleziono konfiguracji: {CONFIG_PATH}")
+        model_config = {'best_threshold': 0.49}  # Domyślny próg
+    
+    if all([feature_extractor, xgb_model, scaler]):
+        print("🎉 Model hybrid_tl_xgb załadowany pomyślnie!")
+    else:
+        print("⚠️ Nie wszystkie komponenty modelu zostały załadowane")
+        
 except Exception as e:
-    print(f"Błąd podczas ładowania modelu: {e}")
-    model = None
-
-# Optymalny próg decyzyjny (ustalony podczas treningu)
-OPTIMAL_THRESHOLD = 0.49  # Zmieniony próg z 0.5 na 0.49 zgodnie z analizą
+    print(f"❌ Błąd podczas ładowania modelu: {e}")
+    feature_extractor = None
+    xgb_model = None
+    scaler = None
+    model_config = {'best_threshold': 0.49}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
-# Funkcja do ekstrakcji cech z obrazu - MUSI być identyczna jak podczas treningu
-def extract_features(image_path):
-    """Ekstrakcja cech ze zdjęcia znamienia skórnego dla modelu XGBoost."""
+def extract_traditional_features(image_path):
+    """Ekstrakcja tradycyjnych cech obrazu (identyczna jak w modelu hybrydowym)."""
     try:
-        # Wczytaj obraz
-        img = cv2.imread(image_path)
-        img = cv2.resize(img, (224, 224))  # Zmień rozmiar do standardowego
-        img_array = img / 255.0  # Normalizacja
+        img = load_img(image_path, target_size=(224, 224))
+        img_array = img_to_array(img) / 255.0
         
-        # Rozdziel kanały RGB
+        # Kanały RGB
         r, g, b = img_array[:, :, 0], img_array[:, :, 1], img_array[:, :, 2]
         
         # Konwersja do HSV
-        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV) / 255.0
+        img_cv = (img_array * 255).astype(np.uint8)
+        hsv = cv2.cvtColor(img_cv, cv2.COLOR_RGB2HSV) / 255.0
         h, s, v = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
         
+        features = []
+        
         # Podstawowe statystyki RGB
-        r_mean, g_mean, b_mean = np.mean(r), np.mean(g), np.mean(b)
-        r_std, g_std, b_std = np.std(r), np.std(g), np.std(b)
+        for channel in [r, g, b]:
+            features.extend([
+                np.mean(channel), np.std(channel), np.min(channel), np.max(channel),
+                np.percentile(channel, 25), np.percentile(channel, 75)
+            ])
         
         # Podstawowe statystyki HSV
-        h_mean, s_mean, v_mean = np.mean(h), np.mean(s), np.mean(v)
-        h_std, s_std, v_std = np.std(h), np.std(s), np.std(v)
+        for channel in [h, s, v]:
+            features.extend([
+                np.mean(channel), np.std(channel), np.min(channel), np.max(channel)
+            ])
         
-        # Histogramy RGB i HSV (15 przedziałów)
-        r_hist = np.histogram(r, bins=15, range=(0, 1))[0] / r.size
-        g_hist = np.histogram(g, bins=15, range=(0, 1))[0] / g.size
-        b_hist = np.histogram(b, bins=15, range=(0, 1))[0] / b.size
-        
-        h_hist = np.histogram(h, bins=15, range=(0, 1))[0] / h.size
-        s_hist = np.histogram(s, bins=15, range=(0, 1))[0] / s.size
-        v_hist = np.histogram(v, bins=15, range=(0, 1))[0] / v.size
-        
-        # Asymetria i kurtoza dla RGB
-        r_skew = np.mean(((r - r_mean) / r_std)**3) if r_std > 0 else 0
-        g_skew = np.mean(((g - g_mean) / g_std)**3) if g_std > 0 else 0
-        b_skew = np.mean(((b - b_mean) / b_std)**3) if b_std > 0 else 0
-        
-        r_kurt = np.mean(((r - r_mean) / r_std)**4) if r_std > 0 else 0
-        g_kurt = np.mean(((g - g_mean) / g_std)**4) if g_std > 0 else 0
-        b_kurt = np.mean(((b - b_mean) / b_std)**4) if b_std > 0 else 0
-        
-        # Asymetria i kurtoza dla HSV
-        h_skew = np.mean(((h - h_mean) / h_std)**3) if h_std > 0 else 0
-        s_skew = np.mean(((s - s_mean) / s_std)**3) if s_std > 0 else 0
-        v_skew = np.mean(((v - v_mean) / v_std)**3) if v_std > 0 else 0
-        
-        h_kurt = np.mean(((h - h_mean) / h_std)**4) if h_std > 0 else 0
-        s_kurt = np.mean(((s - s_mean) / s_std)**4) if s_std > 0 else 0
-        v_kurt = np.mean(((v - v_mean) / v_std)**4) if v_std > 0 else 0
-        
-        # Cechy asymetrii znamienia
+        # Asymetria znamienia
         height, width = r.shape
         left_half = img_array[:, :width//2, :]
         right_half = img_array[:, width//2:, :]
@@ -92,30 +119,29 @@ def extract_features(image_path):
         
         asymmetry_h = np.mean(np.abs(np.mean(left_half, axis=(0,1)) - np.mean(right_half, axis=(0,1))))
         asymmetry_v = np.mean(np.abs(np.mean(top_half, axis=(0,1)) - np.mean(bottom_half, axis=(0,1))))
+        features.extend([asymmetry_h, asymmetry_v])
         
-        # Cechy brzegów i tekstury
+        # Cechy tekstury
         gray = np.mean(img_array, axis=2)
         gray_uint8 = (gray * 255).astype(np.uint8)
         
-        # Gradienty Sobela
+        # Gradienty
         sobel_h = cv2.Sobel(gray_uint8, cv2.CV_64F, 1, 0, ksize=3)
         sobel_v = cv2.Sobel(gray_uint8, cv2.CV_64F, 0, 1, ksize=3)
         magnitude = np.sqrt(sobel_h**2 + sobel_v**2)
         
-        gradient_mean = np.mean(magnitude)
-        gradient_std = np.std(magnitude)
-        gradient_max = np.max(magnitude)
+        features.extend([
+            np.mean(magnitude), np.std(magnitude), np.max(magnitude)
+        ])
         
-        # Tekstura - Laplacian
+        # Laplacian
         laplacian = cv2.Laplacian(gray_uint8, cv2.CV_64F)
-        laplacian_mean = np.mean(np.abs(laplacian))
-        laplacian_std = np.std(laplacian)
+        features.extend([np.mean(np.abs(laplacian)), np.std(laplacian)])
         
         # Entropie
-        r_entropy = entropy(r)
-        g_entropy = entropy(g)
-        b_entropy = entropy(b)
-        gray_entropy = entropy(gray)
+        for channel in [r, g, b]:
+            hist, _ = np.histogram(channel, bins=25, range=(0, 1), density=True)
+            features.append(entropy(hist + 1e-10))
         
         # Cechy kształtu
         gray_blur = cv2.GaussianBlur(gray_uint8, (5, 5), 0)
@@ -135,66 +161,74 @@ def extract_features(image_path):
         
         area_normalized = area / (height * width)
         perimeter_normalized = perimeter / (2 * (height + width))
+        features.extend([area_normalized, perimeter_normalized, circularity])
         
-        # Połącz wszystkie cechy w jeden wektor
-        features = np.concatenate([
-            # Statystyki RGB
-            [r_mean, g_mean, b_mean, r_std, g_std, b_std],
-            # Statystyki HSV
-            [h_mean, s_mean, v_mean, h_std, s_std, v_std],
-            # Asymetria i kurtoza RGB
-            [r_skew, g_skew, b_skew, r_kurt, g_kurt, b_kurt],
-            # Asymetria i kurtoza HSV
-            [h_skew, s_skew, v_skew, h_kurt, s_kurt, v_kurt],
-            # Cechy asymetrii
-            [asymmetry_h, asymmetry_v],
-            # Cechy brzegów
-            [gradient_mean, gradient_std, gradient_max],
-            # Cechy tekstury
-            [laplacian_mean, laplacian_std],
-            # Entropie
-            [r_entropy, g_entropy, b_entropy, gray_entropy],
-            # Cechy kształtu
-            [area_normalized, perimeter_normalized, circularity],
-            # Histogramy
-            r_hist, g_hist, b_hist, h_hist, s_hist, v_hist
-        ])
+        return np.array(features)
         
-        return features
     except Exception as e:
-        print(f"Błąd podczas ekstrakcji cech: {e}")
-        return None
+        print(f"Błąd podczas ekstrakcji tradycyjnych cech z {image_path}: {e}")
+        return np.zeros(50)  # Domyślnie 50 cech
 
-# Funkcja pomocnicza do obliczania entropii
-def entropy(img_channel):
-    """Oblicza entropię dla danego kanału obrazu."""
-    hist, _ = np.histogram(img_channel, bins=25, range=(0, 1), density=True)
-    hist = hist + 1e-10  # Dodaj małą wartość, aby uniknąć log(0)
-    return -np.sum(hist * np.log2(hist))
+def extract_hybrid_features(image_path):
+    """Ekstraktuje zarówno głębokie cechy (MobileNetV2) jak i tradycyjne cechy."""
+    try:
+        # Wczytaj i przygotuj obraz
+        img = load_img(image_path, target_size=(224, 224))
+        img_array = img_to_array(img)
+        
+        # Preprocess dla MobileNetV2
+        img_mobilenet = tf.keras.applications.mobilenet_v2.preprocess_input(img_array)
+        img_batch = np.expand_dims(img_mobilenet, axis=0)
+        
+        # Ekstraktuj głębokie cechy
+        deep_features = feature_extractor.predict(img_batch, verbose=0)[0]
+        
+        # Ekstraktuj tradycyjne cechy
+        traditional_features = extract_traditional_features(image_path)
+        
+        # Połącz cechy
+        combined_features = np.concatenate([deep_features, traditional_features])
+        
+        return combined_features
+        
+    except Exception as e:
+        print(f"Błąd podczas ekstrakcji hybrydowych cech z {image_path}: {e}")
+        return np.zeros(1280 + 50)  # MobileNetV2 (1280) + tradycyjne cechy (~50)
 
 def predict_image(image_path):
-    """Klasyfikacja znamienia skórnego z pliku obrazu przy użyciu modelu XGBoost."""
+    """Klasyfikacja znamienia skórnego z pliku obrazu przy użyciu modelu hybrydowego."""
     try:
-        # Ekstrakcja cech
-        features = extract_features(image_path)
+        # Sprawdź czy wszystkie komponenty są załadowane
+        if not all([feature_extractor, xgb_model, scaler]):
+            return {"error": "Model nie został poprawnie załadowany"}
+        
+        # Pobierz optymalny próg
+        threshold = model_config.get('best_threshold', 0.49)
+        
+        # Ekstrakcja hybrydowych cech
+        features = extract_hybrid_features(image_path)
         if features is None:
             return {"error": "Błąd podczas ekstrakcji cech z obrazu"}
         
-        features = np.array([features])  # Przekształć na format 2D wymagany przez model
+        # Standaryzacja cech
+        features_scaled = scaler.transform([features])
         
         # Predykcja
-        probability = model.predict_proba(features)[0, 1]
+        probability = xgb_model.predict_proba(features_scaled)[0, 1]
         
         # Zastosuj optymalny próg decyzyjny
-        result = "Melanoma" if probability > OPTIMAL_THRESHOLD else "Benign"
+        result = "Melanoma" if probability > threshold else "Benign"
         confidence = float(probability) if result == "Melanoma" else float(1 - probability)
         
         return {
             "prediction": result,
             "confidence": confidence * 100,
-            "raw_probability": float(probability) * 100
+            "raw_probability": float(probability) * 100,
+            "threshold_used": threshold,
+            "model_type": "Hybrid TL+XGBoost"
         }
     except Exception as e:
+        print(f"Błąd podczas predykcji: {e}")
         return {"error": str(e)}
 
 @app.route('/')
@@ -216,8 +250,9 @@ def upload_file():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
         
-        if model is None:
-            return jsonify({'error': 'Model nie został poprawnie załadowany'}), 500
+        # Sprawdź czy modele są załadowane
+        if not all([feature_extractor, xgb_model, scaler]):
+            return jsonify({'error': 'Model hybrydowy nie został poprawnie załadowany'}), 500
 
         result = predict_image(filepath)
         
@@ -240,6 +275,19 @@ def upload_file():
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+@app.route('/health')
+def health_check():
+    """Endpoint do sprawdzania stanu aplikacji."""
+    status = {
+        'status': 'ok',
+        'feature_extractor_loaded': feature_extractor is not None,
+        'xgboost_model_loaded': xgb_model is not None,
+        'scaler_loaded': scaler is not None,
+        'config_loaded': model_config is not None,
+        'optimal_threshold': model_config.get('best_threshold', 'unknown') if model_config else 'unknown'
+    }
+    return jsonify(status)
 
 if __name__ == '__main__':
     app.run(debug=True)
